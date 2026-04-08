@@ -1,6 +1,6 @@
 # Lab 1: Dungeon Crawler
 
-In this lab you will program agents to find paths through a dungeon world, both to find specific single goals as well as to collect 
+In this lab you will program agents to search paths through a dungeon world.
 
 
 ## Files you will edit
