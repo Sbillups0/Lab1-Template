@@ -17,7 +17,7 @@ In this lab you will program agents to search paths through a dungeon world.
 > `run.py` : This is the file to run to test your agents locally, you can run your agents against any of our maps (or make your own map to test) including a number of options you may find useful in testing.
 
 ## Submission
-You will fill in portions of `part1Agents.py` and `part2Agents.py`  during the assignment. You can test your solutions to see if they are working how you expect using `run.py`. Once you have completed the assignment you will submit your files to gradescope (we will only look at `part1Agents.py` and `part2Agents.py` so do not edit any of the other files in your solution). You code will be autograded for technical correctness using test maps not in the repository, and there will be a few leader boards to see how efficient some of your design choices are. Please do not change the names of any provided functions or classes within the code, or you will wreak havoc on the autograder. However, *remember that the actual correctness of your implementation alongside your lab review explanations will be the final judge of your score, rather than the autograder’s judgments*. 
+You will fill in portions of `part1Agents.py` and `part2Agents.py`  during the assignment. You can test your solutions to see if they are working how you expect using `run.py`. Once you have completed the assignment you will submit your files to gradescope (we will only look at `part1Agents.py` and `part2Agents.py` so do not edit any of the other files in your solution). You code will be autograded for technical correctness using test maps not in the repository, and there will be a few leader boards to see how efficient some of your design choices are. Please do not change the names of any provided functions or classes within the code, or import any additional packages, or you will wreak havoc on the autograder. However, *remember that the actual correctness of your implementation alongside your lab review explanations will be the final judge of your score, rather than the autograder’s judgments*. 
 
 ## Academic Dishonesty
 We will be checking your code against other submissions in the class for logical redundancy. If you copy someone else’s code and submit it with minor changes, we will know. These cheat detectors are quite hard to fool, so please don’t try. We trust you all to submit your own work only; please don’t let us down. If you do, we will pursue the strongest consequences available to us.
@@ -55,7 +55,7 @@ This is very similar to depth first search. Again write an agent that performs t
 
 
 ## A*
-While BFS will find a fewest-actions path to the goal, it does so by expanding many more nodes than it generally needs to. Implement A* search wizard and determine an admissible heuristic and see how many fewer nodes need to be expanded.
+While BFS will find a fewest-actions path to the goal, it does so by expanding many more nodes than it generally needs to. Implement A* search wizard and determine an admissible heuristic and see how many fewer nodes need to be expanded. The imported `heapq` default library for priority queues will likely come in handy.
 
 ## Crystal Search
 The real power of A* is only be apparent with a more challenging search problem. Now, it’s time to formulate a new problem and design a heuristic for it.
