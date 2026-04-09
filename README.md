@@ -55,7 +55,7 @@ This is very similar to depth first search. Again write an agent that performs t
 
 
 ## A*
-While BFS will find a fewest-actions path to the goal, it does so by expanding many more nodes than it generally needs to. Implement A* search wizard and determine an admissible heuristic and see how many fewer nodes need to be expanded. The imported `heapq` default library for priority queues will likely come in handy.
+While BFS will find a fewest-actions path to the goal, it does so by expanding many more nodes than it generally needs to. Implement A* search wizard and determine an admissible (and hopefully consistent if you are using graph search!) heuristic and see how many fewer nodes need to be expanded. The imported `heapq` default library for priority queues will likely come in handy.
 
 ## Crystal Search
 The real power of A* is only be apparent with a more challenging search problem. Now, it’s time to formulate a new problem and design a heuristic for it.
@@ -85,7 +85,7 @@ In `WizardGreedy` implement an `evaluation` function where the wizard will simpl
 - `python run.py --agent greedy --goblin random --map arena`
 - `python run.py --agent greedy --goblin greedy --map arena`
 
-Your greedy wizard should be able to get to the portal most of the time against the random goblin.
+Your greedy wizard should be able to get to the portal more than half of the time against the random goblin.
 
 
 ## Minimax
@@ -95,7 +95,7 @@ In `WizardMiniMax` implement an adversarial agent that implements a slightly mor
 In `WizardMiniMax` you should implement this generalized MiniMax as well as an evaluation function. In order to expand the minimax search tree, unlike in part 1 `ReasoningAgents` get direct access to calculating `GameState` successors using the `self.get_successors` function. 
  
  ### Additional Notes
-- Your agent must adhere to `max_depth`, where the depth is based on the number of Wizard moves rather than the depth of successors in the tree. 
+- Your agent must adhere to `max_depth`, where the depth is based on *the number of Wizard moves rather than the depth of successors in the tree*. 
 - Implement the algorithm recursively using helper function(s).
 - The correct implementation of minimax will lead to your wizard losing the game in some cases. Random and Greedy goblins are of course not optimal minimax agents, and so modeling them with minimax search may sometimes make mistakes. This is ok and expected, and your evaluation function can be designed with this in mind. 
 - We will be checking your code to determine whether it explores the correct number of game states. This is the only reliable way to detect some very subtle bugs in implementations of minimax. As a result, the autograder will be very picky about how many times you call `self.get_successors`. If you call it any more or less than necessary, the autograder will complain.
@@ -104,7 +104,7 @@ In `WizardMiniMax` you should implement this generalized MiniMax as well as an e
 
 Make a new agent in `WizardAlphaBeta` that uses alpha-beta pruning to perform a more efficient minimax. You should see a speed-up (perhaps depth 3 alpha-beta will run as fast as depth 2 minimax).
 
-Based on your correct implementation of alpha-beta search, and using your evaluation function to differentiate, your wizard will be put through a trial of dungeons with both random and greedy goblins in multiple different maps (including `pacman` as well as other hidden autograder maps) where your agent will be scored on how well it is able to both reliably survive and get to the portal as well as collect crystals along the way. This will form another leaderboard where you can compete to design the best evaluation function to power alpha-beta and have the best adversarial wizard.
+Based on your correct implementation of alpha-beta search, and using your evaluation function to differentiate, your wizard will be put through a trial of dungeons with both random and greedy goblins in multiple different maps (including `pacman` as well as other hidden autograder maps) where your agent will be scored on how well it is able to both reliably survive and get to the portal as well as collect crystals along the way. You will be rewarded 10 points for each crystal your wizard can bring back through the portal, but lose 50 points if your wizard is killed or it takes too long either processing or running around in the dungeon (it isnt free to keep a portal open forever!). This score averages over mulitple trials will form another leaderboard where you can compete to design the best evaluation function to power alpha-beta and have the best adversarial wizard.
 
 
 ## Expectimax
