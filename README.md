@@ -98,12 +98,17 @@ In `WizardMiniMax` you should implement this generalized MiniMax as well as an e
 - Your agent must adhere to `max_depth`, where the depth is based on *the number of Wizard moves rather than the depth of successors in the tree*. 
 - Implement the algorithm recursively using helper function(s).
 - The correct implementation of minimax will lead to your wizard losing the game in some cases. Random and Greedy goblins are of course not optimal minimax agents, and so modeling them with minimax search may sometimes make mistakes. This is ok and expected, and your evaluation function can be designed with this in mind. 
-- We will be checking your code to determine whether it explores the correct number of game states. This is the only reliable way to detect some very subtle bugs in implementations of minimax. As a result, the autograder will be very picky about how many times you call `self.get_successors`. If you call it any more or less than necessary, the autograder will complain.
+- We will be checking your code to determine whether it explores the correct number of game states. This is the only reliable way to detect some very subtle bugs in implementations of minimax. As a result, the autograder will be very picky about how many times you call `self.get_successors`. If you call it any more or less than necessary, the autograder will complain. This includes ensuring that you do not recalculate minimax values for identical game states.
 
 ## Alpha-Beta Pruning
 
-Make a new agent in `WizardAlphaBeta` that uses alpha-beta pruning to perform a more efficient minimax. You should see a speed-up (perhaps depth 3 alpha-beta will run as fast as depth 2 minimax).
+Make a new agent in `WizardAlphaBeta` that uses alpha-beta pruning to perform a more efficient minimax. You should see a speed-up (perhaps depth 3 alpha-beta will run as fast as depth 2 minimax). Once again we will be very careful about checking the number of times you call `self.get_successors` so make sure you use all of the required optimizations for an effective alpha-beta pruning including:
 
+- Preventing recalculation already computed minimax values
+- Good ordering of branches based on your evaluation function
+- Beaking on an inclusive comparison for alpha and beta values rather than exclusive 
+
+## Making a good evaluation function
 Based on your correct implementation of alpha-beta search, and using your evaluation function to differentiate, your wizard will be put through a trial of dungeons with both random and greedy goblins in multiple different maps (including `pacman` as well as other hidden autograder maps) where your agent will be scored on how well it is able to both reliably survive and get to the portal as well as collect crystals along the way. You will be rewarded 10 points for each crystal your wizard can bring back through the portal, but lose 50 points if your wizard is killed or it takes too long either processing or running around in the dungeon (it isnt free to keep a portal open forever!). This score averages over mulitple trials will form another leaderboard where you can compete to design the best evaluation function to power alpha-beta and have the best adversarial wizard.
 
 
