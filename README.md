@@ -1,6 +1,6 @@
 # Lab 1: Dungeon Crawler
 
-In this lab you will program agents to find paths through a dungeon world, both to find specific single goals as well as to collect 
+In this lab you will program agents to search paths through a dungeon world.
 
 
 ## Files you will edit
@@ -17,7 +17,9 @@ In this lab you will program agents to find paths through a dungeon world, both 
 > `run.py` : This is the file to run to test your agents locally, you can run your agents against any of our maps (or make your own map to test) including a number of options you may find useful in testing.
 
 ## Submission
-You will fill in portions of `part1Agents.py` and `part2Agents.py`  during the assignment. You can test your solutions to see if they are working how you expect using `run.py`. Once you have completed the assignment you will submit your files to gradescope (we will only look at `part1Agents.py` and `part2Agents.py` so do not edit any of the other files in your solution). You code will be autograded for technical correctness using test maps not in the repository, and there will be a few leader boards to see how efficient some of your design choices are. Please do not change the names of any provided functions or classes within the code, or you will wreak havoc on the autograder. However, *remember that the actual correctness of your implementation alongside your lab review explanations will be the final judge of your score, rather than the autograder’s judgments*. 
+You will fill in portions of `part1Agents.py` and `part2Agents.py`  during the assignment. You can test your solutions to see if they are working how you expect using `run.py`. Once you have completed the assignment you will submit your files to gradescope (we will only look at `part1Agents.py` and `part2Agents.py` so do not edit any of the other files in your solution). You code will be autograded for technical correctness using test maps not in the repository, and there will be a few leader boards to see how efficient some of your design choices are. Please do not change the names of any provided functions or classes within the code, or import any additional packages, or you will wreak havoc on the autograder. Additionally, be careful to make your code as memory and time effeicient as possible, as the autograder machine has limited memory and if it fails or times out it will not be able to generate a full report. However, *remember that the actual correctness of your implementation alongside your lab review explanations will be the final judge of your score, rather than the autograder’s judgments*. 
+
+One additional note, the autograder can sometimes take a long time to run due to the limited resources of the gradescope machine as well as running many trials in order to generate a reliable leaderboard score. Therefore you are *highly encouraged* to develop your own local testing to make sure your code is working the way you think instead of relying on the autograder entirely.
 
 ## Academic Dishonesty
 We will be checking your code against other submissions in the class for logical redundancy. If you copy someone else’s code and submit it with minor changes, we will know. These cheat detectors are quite hard to fool, so please don’t try. We trust you all to submit your own work only; please don’t let us down. If you do, we will pursue the strongest consequences available to us.
@@ -55,7 +57,7 @@ This is very similar to depth first search. Again write an agent that performs t
 
 
 ## A*
-While BFS will find a fewest-actions path to the goal, it does so by expanding many more nodes than it generally needs to. Implement A* search wizard and determine an admissible heuristic and see how many fewer nodes need to be expanded.
+While BFS will find a fewest-actions path to the goal, it does so by expanding many more nodes than it generally needs to. Implement A* search wizard and determine an admissible (and hopefully consistent if you are using graph search!) heuristic and see how many fewer nodes need to be expanded. The imported `heapq` default library for priority queues will likely come in handy.
 
 ## Crystal Search
 The real power of A* is only be apparent with a more challenging search problem. Now, it’s time to formulate a new problem and design a heuristic for it.
@@ -85,7 +87,7 @@ In `WizardGreedy` implement an `evaluation` function where the wizard will simpl
 - `python run.py --agent greedy --goblin random --map arena`
 - `python run.py --agent greedy --goblin greedy --map arena`
 
-Your greedy wizard should be able to get to the portal most of the time against the random goblin.
+Your greedy wizard should be able to get to the portal more than half of the time against the random goblin.
 
 
 ## Minimax
@@ -95,16 +97,25 @@ In `WizardMiniMax` implement an adversarial agent that implements a slightly mor
 In `WizardMiniMax` you should implement this generalized MiniMax as well as an evaluation function. In order to expand the minimax search tree, unlike in part 1 `ReasoningAgents` get direct access to calculating `GameState` successors using the `self.get_successors` function. 
  
  ### Additional Notes
-- Your agent must adhere to `max_depth`, where the depth is based on the number of Wizard moves rather than the depth of successors in the tree. 
-- Implement the algorithm recursively using helper function(s).
+- Your agent must adhere to `max_depth`, where the depth is based on *the number of Wizard moves rather than the depth of successors in the tree*. 
+- You should probably implement the algorithm recursively using helper function(s).
 - The correct implementation of minimax will lead to your wizard losing the game in some cases. Random and Greedy goblins are of course not optimal minimax agents, and so modeling them with minimax search may sometimes make mistakes. This is ok and expected, and your evaluation function can be designed with this in mind. 
-- We will be checking your code to determine whether it explores the correct number of game states. This is the only reliable way to detect some very subtle bugs in implementations of minimax. As a result, the autograder will be very picky about how many times you call `self.get_successors`. If you call it any more or less than necessary, the autograder will complain.
+- We will be checking your code to determine whether it explores the correct number of game states. This is the only reliable way to detect some very subtle bugs in implementations of minimax. As a result, the autograder will be very picky about how many times you call `self.get_successors`. If you call it any more or less than necessary, the autograder will complain. 
 
 ## Alpha-Beta Pruning
 
-Make a new agent in `WizardAlphaBeta` that uses alpha-beta pruning to perform a more efficient minimax. You should see a speed-up (perhaps depth 3 alpha-beta will run as fast as depth 2 minimax).
+Make a new agent in `WizardAlphaBeta` that uses alpha-beta pruning to perform a more efficient minimax. You should see a speed-up (perhaps depth 3 alpha-beta will run as fast as depth 2 minimax). Once again we will be very careful about checking the number of times you call `self.get_successors` so make sure you use all of the discussed optimizations for an effective alpha-beta pruning including:
 
-Based on your correct implementation of alpha-beta search, and using your evaluation function to differentiate, your wizard will be put through a trial of dungeons with both random and greedy goblins in multiple different maps (including `pacman` as well as other hidden autograder maps) where your agent will be scored on how well it is able to both reliably survive and get to the portal as well as collect crystals along the way. This will form another leaderboard where you can compete to design the best evaluation function to power alpha-beta and have the best adversarial wizard.
+- Good ordering of branches based on your evaluation function
+- Breaking on an inclusive comparison for alpha and beta values rather than exclusive 
+
+## Improving your evaluation function
+
+Based on your correct implementation of alpha-beta search, and using your evaluation function to differentiate, your wizard will be put through a trial of dungeons with both random and greedy goblins in multiple different maps (including `pacman` as well as other hidden autograder maps) where your agent will be scored on how well it is able to both reliably survive and get to the portal as well as collect crystals along the way. 
+
+You will be rewarded 10 points for each crystal your wizard can bring back through the portal, but lose 50 points if your wizard is killed or it takes too long either processing or running around in circles (it isnt free to keep a portal open forever!). This score averages over mulitple trials will form another leaderboard where you can compete to design the best evaluation function to power alpha-beta and have the best adversarial wizard.
+
+When designing your evaluation function consider that goblins may be acting randomly, and so may be hard to predict in mini-max. Consider what kinds of features to model (i.e. how you will expect to score, what is your proximity to danger, how likely you are to timeout before getting to the portal, etc...) as well as how to weight them.
 
 
 ## Expectimax
