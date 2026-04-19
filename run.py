@@ -69,7 +69,6 @@ args = parser.parse_args()
 available_agents = {
     "dfs": WizardDFS,
     "bfs": WizardBFS,
-    "ucs": WizardUCS,
     "astar": WizardAstar,
     "crystal": CrystalSearchWizard,
     "suboptimal": SuboptimalCrystalSearchWizard,
