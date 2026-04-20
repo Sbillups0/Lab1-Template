@@ -61,17 +61,17 @@ class ReasoningWizard(WizardAgent):
         self, source: GameState
     ) -> tuple[tuple[GameAction, GameState], ...]:
         self.nodes_expanded += 1
-        return GameTransitions.get_successors(source)
+        return GameTransitions.get_successors(source) # Get the successor states and actions from the game transitions
 
     def evaluation(self, state: GameState) -> float:
         return state.score
 
     def react(self, state: GameState) -> WizardMoves:
-        values: dict[WizardMoves, float] = {}
+        values: dict[WizardMoves, float] = {} # Dictionary mapping actions to their evaluation scores (empty at start)
         for action, result in self.get_successors(state):
-            values[action] = self.evaluation(result)
+            values[action] = self.evaluation(result) #Assign eval score to each action (using our eval func)
 
-        return max(values, key=values.get)
+        return max(values, key=values.get) # Return the action with the highest eval score (already greedy)
 
 
 class GoblinAgent(EntityAgent):

@@ -287,39 +287,34 @@ class CrystalSearchWizard(WizardSearchAgent):
         if not target.remaining_crystals:
             return self.manhattan_distance(target.wizard_loc, target.portal_loc) # If no remaining crystals, heuristic is just the manhattan distance from the wizard to the portal
         
-        # Prevent O(grid size) search issue annoyance by caching MST cost
-        # MST(remaining + portal) is identical for all states with the same remaining set,
-        # regardless of where the wizard is. Only the min-to-crystal leg changes per state.
-
-        cache_key = target.remaining_crystals
-        if cache_key not in self.mst_cache:
-            crystal_portal_locs = list(target.remaining_crystals) + [target.portal_loc]
-            self.mst_cache[cache_key] = self.MST_cost(crystal_portal_locs)
-
-        min_to_crystal = min(self.manhattan_distance(target.wizard_loc, crystal_loc) for crystal_loc in target.remaining_crystals)
-
-        return min_to_crystal + self.mst_cache[cache_key]
+        #Otherwise, heuristic (for whole path) is the cost of the MST of the remaining crystals
+        # plus the minimum cost to get from the wizard to any of the remaining crystals
+        # plus the minimum cost to get from any of the remaining crystals to the portal
+        all_locations = [target.wizard_loc] + list(target.remaining_crystals) + [target.portal_loc]
+        return self.MST_cost(all_locations)
     
     def search_to_game(self, search_state: SearchState) -> GameState:
-        cache_key = search_state.remaining_crystals
-        if cache_key not in self.game_state_cache:
-            # Construct a base game state for this crystal configuration (with wizard at portal and all crystals in their locations, but no active entity)
-            initial_wizard_loc = self.initial_game_state.active_entity_location
-            base = self.initial_game_state.replace_entity(initial_wizard_loc.row, initial_wizard_loc.col, EmptyEntity())
-            remaining_set = set(search_state.remaining_crystals)
-            for crystal_loc in self.initial_crystal_locs:
-                if crystal_loc not in remaining_set:
-                    base = base.replace_entity(crystal_loc.row, crystal_loc.col, EmptyEntity())
-            self.game_state_cache[cache_key] = base
-        
-        #Place the wizard in the search state location on the cached base game state for this crystal configuration
-        base = self.game_state_cache[cache_key]
+        initial_wizard_loc = self.initial_game_state.active_entity_location
         initial_wizard = self.initial_game_state.get_active_entity()
-        return (
-            base
-            .replace_entity(search_state.wizard_loc.row, search_state.wizard_loc.col, initial_wizard)
+
+        new_game_state = (
+            self.initial_game_state.replace_entity(
+                initial_wizard_loc.row, initial_wizard_loc.col, EmptyEntity()
+            )
+            .replace_entity(
+                search_state.wizard_loc.row, search_state.wizard_loc.col, initial_wizard
+            )
             .replace_active_entity_location(search_state.wizard_loc)
         )
+        remaining_crystals = set(search_state.remaining_crystals)
+        for crystal_loc in self.initial_crystal_locs:
+            # If the crystal is not in the remaining crystals and not at the wizard's location (i.e. it has been collected), then remove it from the game state (replace with empty)
+            if crystal_loc not in remaining_crystals and crystal_loc != search_state.wizard_loc:
+                new_game_state = new_game_state.replace_entity(
+                    crystal_loc.row, crystal_loc.col, EmptyEntity()
+                )
+
+        return new_game_state
     
     def game_to_search(self, game_state: GameState) -> SearchState:
         wizard_loc = game_state.active_entity_location
@@ -346,8 +341,7 @@ class CrystalSearchWizard(WizardSearchAgent):
         self.initial_crystal_locs = game_state.get_all_entity_locations(Crystal)
         self.visited = set() # Set of visited search states to avoid re-expanding the same state multiple times
         #Pointers to avoid storing full paths in self.paths for every state (caused issues with crystal map)
-        self.mst_cache = {}  # Cache MST(remaining_crystals + portal) by remaining_crystals key
-        self.game_state_cache = {}  # Cache wizard-free base states by crystal configuration (avoid reconstructing every time)
+        #NOTE: (IM A DUMBASS I THOUGHT I NEEDED TO FULLY OPTIMIZE BUT I COULDVE JUST RAN --search_only and --no_render. Wasted like 4 hours converting to use caches)
         self.parent = {} # Dictionary mapping search states to their parent search state (the state from which they were expanded)
         self.g_costs = {} 
         
@@ -401,11 +395,12 @@ class CrystalSearchWizard(WizardSearchAgent):
             heapq.heappush(self.search_pq, (priority, target_ss)) # Add the target state to the priority queue
 
 class SuboptimalCrystalSearchWizard(CrystalSearchWizard):
-    # Need to add more to Search State 
-    @dataclass(eq=True, frozen=True, order=True)
-    class SearchState:
-        wizard_loc: Location
-        portal_loc: Location
-    def heuristic(self, target: SearchState) -> float:
-        # TODO YOUR CODE HERE
-        raise NotImplementedError
+    def heuristic(self, target: CrystalSearchWizard.SearchState) -> float:
+        # If all crystals are collected, just rush to the portal.
+        if not target.remaining_crystals:
+            return 2.0 * self.manhattan_distance(target.wizard_loc, target.portal_loc)
+
+        # Reuse the admissible structure from the optimal agent,
+        # but overweight it to become greedier and expand fewer nodes.
+        all_locations = [target.wizard_loc] + list(target.remaining_crystals) + [target.portal_loc]
+        return 1.5 * self.MST_cost(all_locations)
