@@ -118,15 +118,14 @@ class WizardMiniMax(ReasoningWizard):
         if not wizard_locs:
             return -1000.0 # Wizard is dead, very bad state
         wizard_loc = wizard_locs[0]
-        portal_locs = state.get_all_tile_locations(Portal)
 
-        if portal_locs and isinstance(state.tile_grid[wizard_loc.row][wizard_loc.col], Portal):
+        if isinstance(state.tile_grid[wizard_loc.row][wizard_loc.col], Portal):
             return 500.0 + state.score * 10.0 # Optimal win state, very good        
         total = state.score * 10.0 # Base score from game state (multiplied to have more impact relative to distance)
 
         #Use precomputer portal distances instead of Manhattan (had prior issues with walls) 
         portal_distance = self._portal_distances.get(wizard_loc, 9999) # Get distance to portal from precomputation (9999 if not reachable)
-        total -= 2.0 * portal_distance # Closer to portal is better, so subtract distance from total score
+        total -= 3.0 * portal_distance # Closer to portal is better, so subtract distance from total score
 
         goblin_locs = state.get_all_entity_locations(Goblin)
         if goblin_locs:
@@ -134,8 +133,16 @@ class WizardMiniMax(ReasoningWizard):
                 abs(wizard_loc.row - goblin_loc.row) + abs(wizard_loc.col - goblin_loc.col)
                 for goblin_loc in goblin_locs
             )
-            goblin_weight = 50 * min(1.0, portal_distance / 5.0) # Goblins are more dangerous when closer to portal, so weight them more heavily if portal is nearby
-            total -= goblin_weight / (nearest_goblin_distance + 1) # Closer goblins are worse, so subtract inverse of distance from total score (add 1 to avoid division by zero)
+            if nearest_goblin_distance == 0:
+                total -= 1000.0 #Goblin on same tile is instant death, worst state
+            elif nearest_goblin_distance == 1:
+                total -= 500
+            elif nearest_goblin_distance == 2:
+                total -= 100
+            elif nearest_goblin_distance == 3:
+                total -= 50.0
+            else: 
+                total -= 20.0 / nearest_goblin_distance # Less dangerous if farther away, subtract inverse of distance from total score (add 1 to avoid division by zero)
         return total
         
 
@@ -147,7 +154,7 @@ class WizardMiniMax(ReasoningWizard):
             return True # No wizard found, (dead)
         wizard_loc = wizard_locs[0]
         portal_locs = state.get_all_tile_locations(Portal)
-        return portal_locs and isinstance(state.tile_grid[wizard_loc.row][wizard_loc.col], Portal)  # Terminal if wizard on portal tile
+        return bool(portal_locs) and isinstance(state.tile_grid[wizard_loc.row][wizard_loc.col], Portal)  # Terminal if wizard on portal tile
 
     def react(self, state: GameState) -> WizardMoves:
         # TODO YOUR CODE HERE
@@ -250,9 +257,11 @@ class WizardAlphaBeta(ReasoningWizard):
             if nearest_goblin_distance == 0:
                 return -1000.0 # Goblin on same tile is instant death, worst state
             elif nearest_goblin_distance == 1:
-                total -= 200.0 # Adjacent goblin is very bad, about to die
+                total -= 500.0 # Adjacent goblin is very bad, about to die
             elif nearest_goblin_distance == 2:
-                total -= 50.0 # Goblin two tiles away is somewhat dangerous
+                total -= 150.0 # Goblin two tiles away is somewhat dangerous
+            elif nearest_goblin_distance == 3:
+                total -= 50.0 # Goblin three tiles away is less dangerous
             else:
                 total -= 20.0 / nearest_goblin_distance # Less dangerous if farther away,
         
@@ -271,7 +280,7 @@ class WizardAlphaBeta(ReasoningWizard):
             return True # No wizard found, (dead)
         wizard_loc = wizard_locs[0]
         portal_locs = state.get_all_tile_locations(Portal)
-        return portal_locs and isinstance(state.tile_grid[wizard_loc.row][wizard_loc.col], Portal)  # Terminal if wizard on portal tile
+        return bool(portal_locs) and isinstance(state.tile_grid[wizard_loc.row][wizard_loc.col], Portal)  # Terminal if wizard on portal tile
 
     def react(self, state: GameState) -> WizardMoves:
         # TODO YOUR CODE HERE
@@ -342,6 +351,34 @@ class WizardExpectimax(ReasoningWizard):
         # One time setup to get info needed for eval (portal locations)
         super().__init__(initial_state)
         self._portal_distances = self.compute_portal_distances(initial_state)
+    def compute_portal_distances(self, state: GameState) -> dict[Location, float]:
+        # BFS from portal to each reachable location to compute distance to portal for use in eval
+        portal_locs = state.get_all_tile_locations(Portal)
+        if not portal_locs:
+            return {} # No portals, return empty dict
+        
+        portal_loc = portal_locs[0] # Assume only one portal for now
+        distances = {portal_loc: 0} # Distance from portal to itself is 0
+        queue = [portal_loc]
+        head = 0
+
+        while head < len(queue):
+            loc = queue[head] # Get the next location to explore from the queue
+            head += 1
+            for dr, dc in [(-1, 0), (1, 0), (0, -1), (0, 1)]: # Check all four cardinal directions
+                next_loc = Location(loc.row + dr, loc.col + dc)
+                in_bounds = (
+                    0 <= next_loc.row < state.grid_size[0]
+                    and 0 <= next_loc.col < state.grid_size[1]
+                )
+                if(
+                    in_bounds
+                    and next_loc not in distances # Not yet visited
+                    and not isinstance(state.tile_grid[next_loc.row][next_loc.col], Wall) # Not a wall
+                ):
+                    distances[next_loc] = distances[loc] + 1
+                    queue.append(next_loc)
+        return distances
     
     def evaluation(self, state: GameState) -> float:
         # TODO YOUR CODE HERE
@@ -379,7 +416,7 @@ class WizardExpectimax(ReasoningWizard):
             return True # No wizard found, (dead)
         wizard_loc = wizard_locs[0]
         portal_locs = state.get_all_tile_locations(Portal)
-        return portal_locs and isinstance(state.tile_grid[wizard_loc.row][wizard_loc.col], Portal)  # Terminal if wizard on portal tile
+        return bool(portal_locs) and isinstance(state.tile_grid[wizard_loc.row][wizard_loc.col], Portal)  # Terminal if wizard on portal tile
 
     def react(self, state: GameState) -> WizardMoves:
         # TODO YOUR CODE HERE
