@@ -73,15 +73,8 @@ class WizardGreedy(ReasoningWizard):
             total -= 30.0 / (nearest_goblin_distance + 1) # Closer goblins are worse, so subtract inverse of distance from total score (add 1 to avoid division by zero)
         return total
 
-class WizardMiniMax(ReasoningWizard):
-    def __init__(self, initial_state: GameState):
-        # One time setup to get info needed for eval (portal locations)
-        super().__init__(initial_state)
-        self._portal_distances = self.compute_portal_distances(initial_state)
-    
-    #Same BFS from portal as previous greedy agent to compute distances to portal for use in evaluation function
-    def compute_portal_distances(self, state: GameState) -> dict[Location, float]:
-        # BFS from portal to each reachable location to compute distance to portal for use in eval
+# BFS from portal to each reachable location to compute distance to portal for use in eval (tie breaker)
+def bfs_portal_distances(state: GameState) -> dict:
         portal_locs = state.get_all_tile_locations(Portal)
         if not portal_locs:
             return {} # No portals, return empty dict
@@ -108,24 +101,21 @@ class WizardMiniMax(ReasoningWizard):
                     distances[next_loc] = distances[loc] + 1
                     queue.append(next_loc)
         return distances
-    
-    max_depth: int = 2 # How many moves ahead the agent will look 
 
-    def evaluation(self, state: GameState) -> float:
-        # TODO YOUR CODE HERE
+#Shared eval function 
+def shared_evaluation(state: GameState, portal_distances: dict[Location, float]) -> float:
         wizard_locs = state.get_all_entity_locations(Wizard)
 
         if not wizard_locs:
             return -1000.0 # Wizard is dead, very bad state
         wizard_loc = wizard_locs[0]
-
+        
         if isinstance(state.tile_grid[wizard_loc.row][wizard_loc.col], Portal):
-            return 500.0 + state.score * 10.0 # Optimal win state, very good        
+            return 500.0 + state.score * 10.0 # Optimal win state, very good
         total = state.score * 10.0 # Base score from game state (multiplied to have more impact relative to distance)
 
-        #Use precomputer portal distances instead of Manhattan (had prior issues with walls) 
-        portal_distance = self._portal_distances.get(wizard_loc, 9999) # Get distance to portal from precomputation (9999 if not reachable)
-        total -= 3.0 * portal_distance # Closer to portal is better, so subtract distance from total score
+        portal_distance = portal_distances.get(wizard_loc, 9999) # Get distance to portal from precomputation (9999 if not reachable)
+        total -= 1.5 * portal_distance # Closer to portal is better, so subtract distance from total score with lower weight than greedy to be less aggressive about reaching portal and allow more exploration
 
         goblin_locs = state.get_all_entity_locations(Goblin)
         if goblin_locs:
@@ -134,27 +124,50 @@ class WizardMiniMax(ReasoningWizard):
                 for goblin_loc in goblin_locs
             )
             if nearest_goblin_distance == 0:
-                total -= 1000.0 #Goblin on same tile is instant death, worst state
+                total -= 1000.0 # Goblin on same tile is instant death, worst state
             elif nearest_goblin_distance == 1:
-                total -= 500
+                total -= 500.0 # Adjacent goblin is very bad, about to die
             elif nearest_goblin_distance == 2:
-                total -= 100
-            elif nearest_goblin_distance == 3:
-                total -= 50.0
-            else: 
-                total -= 20.0 / nearest_goblin_distance # Less dangerous if farther away, subtract inverse of distance from total score (add 1 to avoid division by zero)
+                total -= 50.0 # Goblin two tiles away is somewhat dangerous
+            #Beyond 2 tiles, goblins are less dangerous, so no penalty
+
+        #Crystal incentive (encourage collecting crystals for scoring if nearby)
+        crystal_locs = state.get_all_entity_locations(Crystal)
+        for c in crystal_locs:
+            distance = abs(wizard_loc.row - c.row) + abs(wizard_loc.col - c.col)
+            if distance <= 2:
+                total += 6.0 / (distance + 1) # Closer crystals are more valuable, add inverse of distance to score (add 1 to avoid division by zero)
         return total
+
+#Shared terminal state function (remains same for all agents since terminal states are defined by the game rules, not the agent's strategy)
+def is_terminal(state: GameState) -> bool:
+        wizard_locs = state.get_all_entity_locations(Wizard)
+        if not wizard_locs:
+            return True
+        wizard_loc = wizard_locs[0]
+        portal_locs = state.get_all_tile_locations(Portal)
+        return bool(portal_locs) and isinstance(state.tile_grid[wizard_loc.row][wizard_loc.col], Portal)  # Terminal if wizard on portal tile
+
+class WizardMiniMax(ReasoningWizard):
+    def __init__(self, initial_state: GameState):
+        # One time setup to get info needed for eval (portal locations)
+        super().__init__(initial_state)
+        self._portal_distances = self.compute_portal_distances(initial_state)
+    
+    #Same BFS from portal as previous greedy agent to compute distances to portal for use in evaluation function
+    def compute_portal_distances(self, state: GameState) -> dict[Location, float]:
+        return bfs_portal_distances(state)
+    
+    max_depth: int = 2 # How many moves ahead the agent will look 
+
+    def evaluation(self, state: GameState) -> float:
+        # TODO YOUR CODE HERE
+        return shared_evaluation(state, self._portal_distances) # Use the shared evaluation function defined above with precomputed portal distances
         
 
     def is_terminal(self, state: GameState) -> bool:
         # TODO YOUR CODE HERE
-        # Terminal if wizard is dead or reaches portal
-        wizard_locs = state.get_all_entity_locations(Wizard)
-        if not wizard_locs:
-            return True # No wizard found, (dead)
-        wizard_loc = wizard_locs[0]
-        portal_locs = state.get_all_tile_locations(Portal)
-        return bool(portal_locs) and isinstance(state.tile_grid[wizard_loc.row][wizard_loc.col], Portal)  # Terminal if wizard on portal tile
+        return is_terminal(state) # Use the shared terminal state function defined above
 
     def react(self, state: GameState) -> WizardMoves:
         # TODO YOUR CODE HERE
@@ -180,7 +193,7 @@ class WizardMiniMax(ReasoningWizard):
             return self.evaluation(state)
         
         active = state.get_active_entity() #Determines wizard/goblin turn
-        if isinstance(active, Wizard):
+        if isinstance(active, Wizard): #Wizard turn, maximizing for wizard
             if depth == 0:
                 return self.evaluation(state)
             best = float('-inf') # Maximizing for wizard
@@ -203,84 +216,15 @@ class WizardAlphaBeta(ReasoningWizard):
         super().__init__(initial_state)
         self._portal_distances = self.compute_portal_distances(initial_state)
     def compute_portal_distances(self, state: GameState) -> dict[Location, float]:
-        # BFS from portal to each reachable location to compute distance to portal for use in eval
-        portal_locs = state.get_all_tile_locations(Portal)
-        if not portal_locs:
-            return {} # No portals, return empty dict
-        
-        portal_loc = portal_locs[0] # Assume only one portal for now
-        distances = {portal_loc: 0} # Distance from portal to itself is 0
-        queue = [portal_loc]
-        head = 0
-
-        while head < len(queue):
-            loc = queue[head] # Get the next location to explore from the queue
-            head += 1
-            for dr, dc in [(-1, 0), (1, 0), (0, -1), (0, 1)]: # Check all four cardinal directions
-                next_loc = Location(loc.row + dr, loc.col + dc)
-                in_bounds = (
-                    0 <= next_loc.row < state.grid_size[0]
-                    and 0 <= next_loc.col < state.grid_size[1]
-                )
-                if(
-                    in_bounds
-                    and next_loc not in distances # Not yet visited
-                    and not isinstance(state.tile_grid[next_loc.row][next_loc.col], Wall) # Not a wall
-                ):
-                    distances[next_loc] = distances[loc] + 1
-                    queue.append(next_loc)
-        return distances
+        return bfs_portal_distances(state)
     
     def evaluation(self, state: GameState) -> float:
         # TODO YOUR CODE HERE
-        wizard_locs = state.get_all_entity_locations(Wizard)
-        if not wizard_locs:
-            return -1000.0 # Wizard is dead, very bad state
-        wizard_loc = wizard_locs[0]
-
-        #Hard win condition
-        if isinstance(state.tile_grid[wizard_loc.row][wizard_loc.col], Portal):
-            return 500.0 + state.score * 10.0 # Optimal win state, very good
-        total = state.score * 10.0 # Base score from game state (multiplied to have more impact relative to distance)
-
-        #BFS precomputed distances to portal
-        portal_distance = self._portal_distances.get(wizard_loc, 9999) # Get distance to portal from precomputation (9999 if not reachable)
-        total -= 3.0 * portal_distance # Closer to portal is better, so subtract distance from total score with higher weight than minimax to be more aggressive about reaching portal
-
-        #Goblin danger (avoid adjacent goblins)
-        goblin_locs = state.get_all_entity_locations(Goblin)
-        if goblin_locs:
-            nearest_goblin_distance = min(
-                abs(wizard_loc.row - goblin_loc.row) + abs(wizard_loc.col - goblin_loc.col)
-                for goblin_loc in goblin_locs
-            )
-            if nearest_goblin_distance == 0:
-                return -1000.0 # Goblin on same tile is instant death, worst state
-            elif nearest_goblin_distance == 1:
-                total -= 500.0 # Adjacent goblin is very bad, about to die
-            elif nearest_goblin_distance == 2:
-                total -= 150.0 # Goblin two tiles away is somewhat dangerous
-            elif nearest_goblin_distance == 3:
-                total -= 50.0 # Goblin three tiles away is less dangerous
-            else:
-                total -= 20.0 / nearest_goblin_distance # Less dangerous if farther away,
-        
-        #Crystal incentive (encourage collecting crystals for scoring if nearby)
-        crystal_locs = state.get_all_entity_locations(Crystal)
-        for c in crystal_locs:
-            distance = abs(wizard_loc.row - c.row) + abs(wizard_loc.col - c.col)
-            if distance <= 3:
-                total += 8.0 / (distance + 1) # Closer crystals are more valuable, add inverse of distance to score (add 1 to avoid division by zero)
-        return total
+        return shared_evaluation(state, self._portal_distances) # Use the shared evaluation function defined above with precomputed portal distances
     
     def is_terminal(self, state: GameState) -> bool:
         # TODO YOUR CODE HERE
-        wizard_locs = state.get_all_entity_locations(Wizard)
-        if not wizard_locs:
-            return True # No wizard found, (dead)
-        wizard_loc = wizard_locs[0]
-        portal_locs = state.get_all_tile_locations(Portal)
-        return bool(portal_locs) and isinstance(state.tile_grid[wizard_loc.row][wizard_loc.col], Portal)  # Terminal if wizard on portal tile
+        return is_terminal(state) # Use the shared terminal state function defined above
 
     def react(self, state: GameState) -> WizardMoves:
         # TODO YOUR CODE HERE
@@ -290,18 +234,15 @@ class WizardAlphaBeta(ReasoningWizard):
         alpha = float('-inf')
         beta = float('inf')
 
-        #Sort successors best-first for more efficient pruning (try better moves first to increase chance of pruning later branches)
-        successors = list(self.get_successors(state))
-        successors.sort(key=lambda s: self.evaluation(s[1]), reverse=True) # Sort
-        for action, successor in successors:
+        for action, successor in self.get_successors(state):
             value = self.alpha_beta_minimax(successor, self.max_depth - 1, alpha, beta) # Get alpha-beta minimax value of successor state (subtract 1 from depth since we are going down one level in the tree)
-            wlocs = successor.get_all_entity_locations(Wizard)
-            succ_dist = self._portal_distances.get(wlocs[0], 9999) if wlocs else 9999 # Get distance to portal in successor state for tie-breaking
+            succ_wizard_locs = successor.get_all_entity_locations(Wizard)
+            succ_dist = self._portal_distances.get(succ_wizard_locs[0], 9999) if succ_wizard_locs else 9999 # Get distance to portal in successor state for tie-breaking (9999 if no wizard or not reachable)
+
             if value > best_value or (value == best_value and succ_dist < best_dist):
                 best_value = value
                 best_action = action
                 best_dist = succ_dist
-
             alpha = max(alpha, best_value) # Update alpha with the best value found so far
         return best_action
 
@@ -312,35 +253,29 @@ class WizardAlphaBeta(ReasoningWizard):
             return self.evaluation(state)
         
         active = state.get_active_entity() #Determines wizard/goblin turn
-        if isinstance(active, Wizard): #MAX node
+        if isinstance(active, Wizard): #MAX node (wizard turn)
             if depth == 0:
                 return self.evaluation(state)
-            #Sort descending so best-case pruning happens earlier for more efficient search
-            successors = list(self.get_successors(state))
-            successors.sort(key=lambda s: self.evaluation(s[1]), reverse=True) # Sort successors by their evaluation score in descending order for better pruning
             best = float('-inf')
-            for action, successor in successors:
-                val = self.alpha_beta_minimax(successor, depth - 1, alpha, beta)
+            for action, successor in self.get_successors(state):
+                val = self.alpha_beta_minimax(successor, depth - 1, alpha, beta) # Get the alpha-beta minimax value of the successor state
                 if val > best:
                     best = val
                 if best > alpha:
                     alpha = best # Update alpha with the best value found so far
                 if best >= beta:
-                    break # Beta cut-off, prune remaining branches
+                    break # Beta cut-off, no need to explore further since the minimizing player would never allow this branch to be chosen
             return best
         else: # MIN node (goblin turn)
-            #Sort ascending so worst-case pruning happens earlier for more efficient search
-            successors = list(self.get_successors(state))
-            successors.sort(key=lambda s: self.evaluation(s[1])) # Sort successors by their evaluation score in ascending order for better pruning
             worst = float('inf')
-            for action, successor in successors:
-                val = self.alpha_beta_minimax(successor, depth, alpha, beta) # Depth stays the same for goblin turns since we only want to decrement on wizard turns
+            for action, successor in self.get_successors(state):
+                val = self.alpha_beta_minimax(successor, depth, alpha, beta) # Get the alpha-beta minimax value of the successor state (keep depth the same since we only want to decrement on wizard turns)
                 if val < worst:
                     worst = val
                 if worst < beta:
                     beta = worst # Update beta with the worst value found so far
                 if worst <= alpha:
-                    break # Alpha cut-off, prune remaining branches
+                    break # Alpha cut-off, no need to explore further since the maximizing player would never allow this branch to be chosen
             return worst
 
 
@@ -352,33 +287,7 @@ class WizardExpectimax(ReasoningWizard):
         super().__init__(initial_state)
         self._portal_distances = self.compute_portal_distances(initial_state)
     def compute_portal_distances(self, state: GameState) -> dict[Location, float]:
-        # BFS from portal to each reachable location to compute distance to portal for use in eval
-        portal_locs = state.get_all_tile_locations(Portal)
-        if not portal_locs:
-            return {} # No portals, return empty dict
-        
-        portal_loc = portal_locs[0] # Assume only one portal for now
-        distances = {portal_loc: 0} # Distance from portal to itself is 0
-        queue = [portal_loc]
-        head = 0
-
-        while head < len(queue):
-            loc = queue[head] # Get the next location to explore from the queue
-            head += 1
-            for dr, dc in [(-1, 0), (1, 0), (0, -1), (0, 1)]: # Check all four cardinal directions
-                next_loc = Location(loc.row + dr, loc.col + dc)
-                in_bounds = (
-                    0 <= next_loc.row < state.grid_size[0]
-                    and 0 <= next_loc.col < state.grid_size[1]
-                )
-                if(
-                    in_bounds
-                    and next_loc not in distances # Not yet visited
-                    and not isinstance(state.tile_grid[next_loc.row][next_loc.col], Wall) # Not a wall
-                ):
-                    distances[next_loc] = distances[loc] + 1
-                    queue.append(next_loc)
-        return distances
+        return bfs_portal_distances(state)
     
     def evaluation(self, state: GameState) -> float:
         # TODO YOUR CODE HERE
@@ -391,7 +300,7 @@ class WizardExpectimax(ReasoningWizard):
             return 500.0 + state.score * 10.0 # Optimal win state, very good
         total = state.score * 10.0 # Base score from game state (multiplied to have more impact relative to distance)
         portal_distance = self._portal_distances.get(wizard_loc, 9999) # Get distance to portal from precomputation (9999 if not reachable)
-        total -= 2.5 * portal_distance # Closer to portal is better, so subtract distance from total score
+        total -= 1.5 * portal_distance # Closer to portal is better
 
         goblin_locs = state.get_all_entity_locations(Goblin)
         if goblin_locs:
@@ -399,24 +308,28 @@ class WizardExpectimax(ReasoningWizard):
                 abs(wizard_loc.row - goblin_loc.row) + abs(wizard_loc.col - goblin_loc.col)
                 for goblin_loc in goblin_locs
             )
-            #Weight is slightly less than minimax version since goblins are modelled as random for expectimax (not rational all the time)
-            total -= 25.0 / (nearest_goblin_distance + 1) # Closer goblins are worse, so subtract inverse of distance from total score (add 1 to avoid division by zero)
-
+            
+            #Note: reduced penalties for goblins compared to minimax agent since expectimax assumes random behavior and is less certain about the threat, 
+            # we want to be less aggressive about avoiding them to allow for more exploration and potentially better long-term outcomes
+            if nearest_goblin_distance == 0:
+                total -= 1000.0 # Goblin on same tile is instant death, worst state
+            elif nearest_goblin_distance == 1:
+                total -= 300.0 # Adjacent goblin is very bad, about to die
+            elif nearest_goblin_distance == 2:
+                total -= 40.0 # Goblin two tiles away is somewhat dangerous
+            
+        #Crystal incentive (encourage collecting crystals for scoring if nearby)
         crystal_locs = state.get_all_entity_locations(Crystal)
         for c in crystal_locs:
             distance = abs(wizard_loc.row - c.row) + abs(wizard_loc.col - c.col)
-            if distance <= 3:
-                total += 8.0 / (distance + 1) # Closer crystals are more valuable, add inverse of distance to score (add 1 to avoid division by zero)
+            if distance <= 2:
+                total += 6.0 / (distance + 1) # Closer crystals are more valuable, add inverse of distance to score (add 1 to avoid division by zero)
+        
         return total
-    
+
     def is_terminal(self, state: GameState) -> bool:
         # TODO YOUR CODE HERE
-        wizard_locs = state.get_all_entity_locations(Wizard)
-        if not wizard_locs:
-            return True # No wizard found, (dead)
-        wizard_loc = wizard_locs[0]
-        portal_locs = state.get_all_tile_locations(Portal)
-        return bool(portal_locs) and isinstance(state.tile_grid[wizard_loc.row][wizard_loc.col], Portal)  # Terminal if wizard on portal tile
+        return is_terminal(state) # Use the shared terminal state function defined above
 
     def react(self, state: GameState) -> WizardMoves:
         # TODO YOUR CODE HERE
