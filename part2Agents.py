@@ -112,32 +112,12 @@ def shared_evaluation(state: GameState, portal_distances: dict[Location, float])
         
         if isinstance(state.tile_grid[wizard_loc.row][wizard_loc.col], Portal):
             return 500.0 + state.score * 10.0 # Optimal win state, very good
-        total = state.score * 10.0 # Base score from game state (multiplied to have more impact relative to distance)
-
+        
+        total = state.score * 10.0 # Base score from game state (multiplied to have more impact relative to distance) rewards crystal collection since score increases when collected.
         portal_distance = portal_distances.get(wizard_loc, 9999) # Get distance to portal from precomputation (9999 if not reachable)
         total -= 1.5 * portal_distance # Closer to portal is better, so subtract distance from total score with lower weight than greedy to be less aggressive about reaching portal and allow more exploration
-
-        goblin_locs = state.get_all_entity_locations(Goblin)
-        if goblin_locs:
-            nearest_goblin_distance = min(
-                abs(wizard_loc.row - goblin_loc.row) + abs(wizard_loc.col - goblin_loc.col)
-                for goblin_loc in goblin_locs
-            )
-            if nearest_goblin_distance == 0:
-                total -= 1000.0 # Goblin on same tile is instant death, worst state
-            elif nearest_goblin_distance == 1:
-                total -= 500.0 # Adjacent goblin is very bad, about to die
-            elif nearest_goblin_distance == 2:
-                total -= 50.0 # Goblin two tiles away is somewhat dangerous
-            #Beyond 2 tiles, goblins are less dangerous, so no penalty
-
-        #Crystal incentive (encourage collecting crystals for scoring if nearby)
-        crystal_locs = state.get_all_entity_locations(Crystal)
-        for c in crystal_locs:
-            distance = abs(wizard_loc.row - c.row) + abs(wizard_loc.col - c.col)
-            if distance <= 2:
-                total += 6.0 / (distance + 1) # Closer crystals are more valuable, add inverse of distance to score (add 1 to avoid division by zero)
         return total
+        
 
 #Shared terminal state function (remains same for all agents since terminal states are defined by the game rules, not the agent's strategy)
 def is_terminal(state: GameState) -> bool:
