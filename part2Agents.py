@@ -116,6 +116,16 @@ def shared_evaluation(state: GameState, portal_distances: dict[Location, float])
         total = state.score * 10.0 # Base score from game state (multiplied to have more impact relative to distance) rewards crystal collection since score increases when collected.
         portal_distance = portal_distances.get(wizard_loc, 9999) # Get distance to portal from precomputation (9999 if not reachable)
         total -= 1.5 * portal_distance # Closer to portal is better, so subtract distance from total score with lower weight than greedy to be less aggressive about reaching portal and allow more exploration
+        
+        #Goblin penalty
+        goblin_locs = state.get_all_entity_locations(Goblin)
+        if goblin_locs:
+            nearest_goblin_distance = min(
+                abs(wizard_loc.row - goblin_loc.row) + abs(wizard_loc.col - goblin_loc.col)
+                for goblin_loc in goblin_locs
+            )
+            # Closer goblins are worse, use lower weight than greedy to be less aggressive about avoiding goblins and allow more exploration
+            total -= 15.0 / (nearest_goblin_distance + 1) 
         return total
         
 
@@ -157,7 +167,7 @@ class WizardMiniMax(ReasoningWizard):
         best_dist = float('inf') # For tie-breaking, prefer states closer to portal
         for action, successor in self.get_successors(state):
             #NOTE: use max_depth not max_depth -1 here, caused issues
-            value = self.minimax(successor, self.max_depth) # Get minimax value of successor state (subtract 1 from depth since we are going down one level in the tree)
+            value = self.minimax(successor, self.max_depth - 1) # Get minimax value of successor state (subtract 1 from depth since we are going down one level in the tree)
             succ_wizard_locs = successor.get_all_entity_locations(Wizard)
             succ_dist = self._portal_distances.get(succ_wizard_locs[0], 9999) if succ_wizard_locs else 9999 # Get distance to portal in successor state for tie-breaking (9999 if no wizard or not reachable)
     
@@ -216,7 +226,7 @@ class WizardAlphaBeta(ReasoningWizard):
         beta = float('inf')
 
         for action, successor in self.get_successors(state):
-            value = self.alpha_beta_minimax(successor, self.max_depth, alpha, beta) # Get alpha-beta minimax value of successor state (subtract 1 from depth since we are going down one level in the tree)
+            value = self.alpha_beta_minimax(successor, self.max_depth-1, alpha, beta) # Get alpha-beta minimax value of successor state (subtract 1 from depth since we are going down one level in the tree)
             succ_wizard_locs = successor.get_all_entity_locations(Wizard)
             succ_dist = self._portal_distances.get(succ_wizard_locs[0], 9999) if succ_wizard_locs else 9999 # Get distance to portal in successor state for tie-breaking (9999 if no wizard or not reachable)
 
