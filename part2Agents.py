@@ -176,7 +176,7 @@ class WizardMiniMax(ReasoningWizard):
         best_action = WizardMoves.STAY # Default action if no successors
         best_value = float('-inf') # Initialize best value to negative infinity for maximization
 
-        for action, successor in ordered_successors(self, state, reverse=True): # Get the successor states ordered by their evaluation score (lowest first) for better alpha-beta pruning performance
+        for action, successor in self.get_successors(state): # Get the successor states and actions from the current state
             value = self.minimax(successor, self.max_depth - 1) # Get minimax value of successor state (subtract 1 from depth since we are going down one level in the tree)
             if value > best_value:
                 best_value = value
@@ -195,12 +195,12 @@ class WizardMiniMax(ReasoningWizard):
             if depth == 0:
                 return self.evaluation(state)
             best = float('-inf') # Maximizing for wizard
-            for action, successor in ordered_successors(self, state, reverse=True): # Get the successor states ordered by their evaluation score (highest first) for better alpha-beta pruning performance
+            for action, successor in self.get_successors(state): # Get the successor states and actions from the current state
                 best = max(best, self.minimax(successor, depth - 1)) # Get the max value of the successor states
             return best
         else: # Goblin turn, minimizing for goblin
             worst = float('inf')
-            for action, successor in ordered_successors(self, state, reverse=False): # Get the successor states ordered by their evaluation score (lowest first) for better alpha-beta pruning performance
+            for action, successor in self.get_successors(state): # Get the successor states and actions from the current state
                 worst = min(worst, self.minimax(successor, depth)) # Get the min value of the successor states (keeping depth the same since we only want to decrement on wizard turns)
             return worst
 
@@ -231,7 +231,7 @@ class WizardAlphaBeta(ReasoningWizard):
         alpha = float('-inf') # Initialize alpha to negative infinity
         beta = float('inf') # Initialize beta to positive infinity
 
-        for action, successor in ordered_successors(self, state, reverse=True): # Get the successor states ordered by their evaluation score (highest first)
+        for action, successor in self.get_successors(state): # Get the successor states and actions from the current state
             value = self.alpha_beta_minimax(successor, self.max_depth - 1, alpha, beta) # Get alpha-beta minimax value of successor state (subtract 1 from depth since we are going down one level in the tree)
             if value > best_value:
                 best_value = value
