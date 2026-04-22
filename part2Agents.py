@@ -111,17 +111,15 @@ def shared_evaluation(state: GameState, portal_distances: dict[Location, float])
         #Winning sooner is better (so higher multiplier)
         if isinstance(state.tile_grid[wizard_loc.row][wizard_loc.col], Portal):
             # Optimal win state, very good, want to prioritize winning above all else, then within winning states prefer higher score from crystals
-            return 1000000.0 + 100.0*state.score - 10.0*state.turn 
+            return 1000000.0 + 10.0*state.score
         total = 0.0
-        #Reward for crystals, multiplied to have more impact relative to distance
-        total += 80 * state.score 
-        # strongly reward progress towards portal
+
+        # main focus -> get to portal
         portal_distance = portal_distances.get(wizard_loc, 9999) 
-        total -= 6.0 * portal_distance # Closer to portal is better, so subtract distance from total score
+        total -= 100.0 * portal_distance # Closer to portal is better, so subtract distance from total score
 
-        #discourage stalling/loops (issue previously)
-        total -= 2.0 * state.turn
-
+        #small reward for crystals
+        total += 5.0 * state.score
         goblin_locs = state.get_all_entity_locations(Goblin)
         if goblin_locs:
             nearest_goblin_distance = min(
@@ -131,11 +129,9 @@ def shared_evaluation(state: GameState, portal_distances: dict[Location, float])
             if nearest_goblin_distance == 0:
                 total -= 1000000.0 # Goblin on same tile is instant death, worst state, want to avoid at all costs
             elif nearest_goblin_distance == 1:
-                total -= 500.0 # Adjacent goblin is very bad, about to die, want to avoid
+                total -= 1000.0 # Adjacent goblin is very bad, about to die, want to avoid
             elif nearest_goblin_distance == 2:
-                total -= 120.0 # Goblin two tiles away is somewhat dangerous, want to avoid if possible
-            else:
-                total -= 25.0 / nearest_goblin_distance # Further goblins are less dangerous, subtract inverse of distance from total score (add 1 to avoid division by zero)
+                total -= 50.0 # Goblin two tiles away is somewhat dangerous, want to avoid if possible
 
         return total
 
