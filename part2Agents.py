@@ -13,7 +13,7 @@ from model import (
 from agents import ReasoningWizard
 from dataclasses import dataclass
 
-
+# one-step lookahead, picks successor with best evaluation score (with tie-breaking based on proximity to portal)
 class WizardGreedy(ReasoningWizard):
     def __init__(self, initial_state: GameState):
         # One time setup to get info needed for eval (portal locations)
@@ -150,6 +150,7 @@ def ordered_successors(agent: ReasoningWizard, state: GameState, reverse: bool):
     successors.sort(key=lambda pair: agent.evaluation(pair[1]), reverse=reverse) # Order successors by evaluation score for better alpha-beta pruning performance
     return successors
 
+#assumes goblins are adversarial and choose moves that minimize wizard outcome 
 class WizardMiniMax(ReasoningWizard):
     def __init__(self, initial_state: GameState):
         # One time setup to get info needed for eval (portal locations)
@@ -170,7 +171,8 @@ class WizardMiniMax(ReasoningWizard):
     def is_terminal(self, state: GameState) -> bool:
         # TODO YOUR CODE HERE
         return is_terminal(state) # Use the shared terminal state function defined above
-
+    
+    # Selects the best action for the wizard by looking ahead up to max_depth moves and assuming optimal play from goblins (minimax)
     def react(self, state: GameState) -> WizardMoves:
         # TODO YOUR CODE HERE
         best_action = WizardMoves.STAY # Default action if no successors
@@ -196,7 +198,7 @@ class WizardMiniMax(ReasoningWizard):
                 return self.evaluation(state)
             best = float('-inf') # Maximizing for wizard
             for action, successor in self.get_successors(state): # Get the successor states and actions from the current state
-                best = max(best, self.minimax(successor, depth - 1)) # Get the max value of the successor states
+                best = max(best, self.minimax(successor, depth - 1)) # Get the max value of the successor states (decrementing depth since wizard's turn)
             return best
         else: # Goblin turn, minimizing for goblin
             worst = float('inf')
@@ -204,10 +206,9 @@ class WizardMiniMax(ReasoningWizard):
                 worst = min(worst, self.minimax(successor, depth)) # Get the min value of the successor states (keeping depth the same since we only want to decrement on wizard turns)
             return worst
 
-
+#same as minimax, but prunes branches that cannot affect the final choice
 class WizardAlphaBeta(ReasoningWizard):
     #Similar to minimax, but with alpha-beta pruning to avoid expanding branches that won't impact the final decision, allowing for deeper search within the same time limit
-
     max_depth: int = 2
     def __init__(self, initial_state: GameState):
         # One time setup to get info needed for eval (portal locations)
@@ -267,7 +268,7 @@ class WizardAlphaBeta(ReasoningWizard):
             return worst
 
 
-
+#unpredictable goblin behavior, assumes goblins choose moves uniformly at random (expectimax)
 class WizardExpectimax(ReasoningWizard):
     max_depth: int = 2
     def __init__(self, initial_state: GameState):
@@ -277,6 +278,8 @@ class WizardExpectimax(ReasoningWizard):
     def compute_portal_distances(self, state: GameState) -> dict[Location, float]:
         return bfs_portal_distances(state)
     
+    # More optimisitc evaluation function since expectimax assumes random goblin behavior and is less certain about the threat, want to reward portal proximity
+    # and crystal collection more (since risk is lower with random goblins; thus goblin penaltys are reduced and portal/crystal incentives are increased compared to minimax agent)
     def evaluation(self, state: GameState) -> float:
         # TODO YOUR CODE HERE
         wizard_locs = state.get_all_entity_locations(Wizard)
@@ -335,7 +338,7 @@ class WizardExpectimax(ReasoningWizard):
                 best_dist = succ_dist
         return best_action
 
-
+    
     def expectimax(self, state: GameState, depth: int):
         # TODO YOUR CODE HERE
         if self.is_terminal(state):

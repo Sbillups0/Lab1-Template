@@ -76,7 +76,7 @@ class WizardDFS(WizardSearchAgent):
         source_search_state = self.game_to_search(source) # Convert the source game state to a search state
         target_search_state = self.game_to_search(target) # Convert the target game state to a search state
 
-        # Only process target if not yet visited (not in self.paths)
+        # Only process tile if not yet visited (not in self.paths)
         if target_search_state not in self.paths:
             # Add path from source to target (path to source + action taken)
             self.paths[target_search_state] = self.paths[source_search_state] + [action]
@@ -132,7 +132,7 @@ class WizardBFS(WizardSearchAgent):
 
     def is_goal(self, state: SearchState) -> bool:
         return state.wizard_loc == state.portal_loc
-
+    # Decides what node to expand next based on search_stack
     def next_search_expansion(self) -> GameState | None:
         # TODO: YOUR CODE HERE
         if not self.search_stack:
@@ -140,16 +140,16 @@ class WizardBFS(WizardSearchAgent):
         
         state = self.search_stack.pop(0) # Get the next node to expand (from the front of the stack for BFS; FIFO)
         return self.search_to_game(state) # Convert the search state to a game state and return it for expansion
-
+    # Decides what to do with the expanded node (add to search stack or save path if goal)
     def process_search_expansion(
         self, source: GameState, target: GameState, action: WizardMoves
     ) -> None:
         # TODO: YOUR CODE HERE
         source_search_state = self.game_to_search(source) # Convert the source game for comparison
         target_search_state = self.game_to_search(target) # Convert the target game for comparison
-        # Only process target if not yet visited (not in self.paths)
+        # Only process tile if not yet visited (not in self.paths)
         if target_search_state not in self.paths:
-            # Add path from source to target (path to source + action taken)
+            # Add path from source to target (path to source + action taken (either up, down, left, or right))
             self.paths[target_search_state] = self.paths[source_search_state] + [action]
             if self.is_goal(target_search_state):
                 # Goal found, no need to add to search stack, but need to reverse path (so pop works correctly in returning actions) and save to self.plan
@@ -229,7 +229,7 @@ class WizardAstar(WizardSearchAgent):
             if self.is_goal(state):
                 _, path = self.paths[state] # Get the path to this state from self.paths and save to self.plan
                 self.plan = list(reversed(path)) # Reverse the path so that we can pop actions from it in the correct order
-                return None # Goal found, return None to indicate search is complete
+                return None # return None to indicate search is complete (goal found)
             
             return self.search_to_game(state)
         return None
@@ -257,15 +257,15 @@ class CrystalSearchWizard(WizardSearchAgent):
     class SearchState:
         wizard_loc: Location
         portal_loc: Location
-        remaining_crystals: tuple[Location, ...] # Need to track remaining crystals in search state for optimal crystal search
+        remaining_crystals: tuple[Location, ...] # track remaining crystals in search state for optimal crystal search
     
     initial_game_state: GameState
 
     def manhattan_distance(self, loc1: Location, loc2: Location) -> float:
         return abs(loc1.row - loc2.row) + abs(loc1.col - loc2.col)
-    
+    # Calculate lowest possible cost to reach goal from target using MST (connect all paths with minimal total edge cost (manhattan distance)) as heuristic 
+    # for A* search, since we know we must at least travel the cost of the MST to get all remaining crystals and reach the portal, so it is admissible.
     def MST_cost(self, locations: list[Location]) -> float:
-        # Prim's algorithm for MST cost
         if len(locations) <= 1:
             return 0
         in_mst = {locations[0]} # Start with the first location in the MST
@@ -284,8 +284,9 @@ class CrystalSearchWizard(WizardSearchAgent):
         return total_cost
     
     def heuristic(self, target: GameState) -> float:
+        # If no remaining crystals, heuristic is just the manhattan distance from the wizard to the portal
         if not target.remaining_crystals:
-            return self.manhattan_distance(target.wizard_loc, target.portal_loc) # If no remaining crystals, heuristic is just the manhattan distance from the wizard to the portal
+            return self.manhattan_distance(target.wizard_loc, target.portal_loc) 
         
         #Otherwise, heuristic (for whole path) is the cost of the MST of the remaining crystals
         # plus the minimum cost to get from the wizard to any of the remaining crystals
@@ -322,7 +323,7 @@ class CrystalSearchWizard(WizardSearchAgent):
         remaining_crystals = tuple(sorted(game_state.get_all_entity_locations(Crystal)))
         return self.SearchState(wizard_loc, portal_loc, remaining_crystals)
     
-    # Added to fix O(grid size) search issue
+    # Added to fix O(grid size) search issue (no longer scans entire grid to determine if crystal collected or not)
     def target_to_search(self, source_ss: SearchState, target: GameState) -> SearchState:
         new_wizard_loc = target.active_entity_location
         new_remaining = tuple(loc for loc in source_ss.remaining_crystals if loc != new_wizard_loc) # If we moved onto a crystal, it is no longer remaining, so remove it from the remaining crystals in the new search state
@@ -350,6 +351,9 @@ class CrystalSearchWizard(WizardSearchAgent):
         self.search_pq = [(self.heuristic(initial_state), initial_state)] # Priority queue of search states to expand (frontier), initialized with the initial state and its heuristic value as the priority
         self.current_search_state = initial_state # Track the current search state for use in target_to_search to avoid O(grid size) search issue
 
+    # Rather than storing full action list per state, we reconstruct instead (saves memory) 
+    #NOTE: Likely unneeded, just thought it would fix the running for max_crystal_map which was running out of memory with the full path storage, 
+    # but it was actually just the rendering that was the issue, so could have just used --no_render, but whatever, this works too and is more memory efficient.
     def reconstruct_path(self, goal_state: SearchState) -> list[WizardMoves]:
         path = []
         state = goal_state
@@ -401,6 +405,7 @@ class SuboptimalCrystalSearchWizard(CrystalSearchWizard):
             return 2.0 * self.manhattan_distance(target.wizard_loc, target.portal_loc)
 
         # Reuse the admissible structure from the optimal agent,
-        # but overweight it to become greedier and expand fewer nodes.
+        # but overweight it to become greedier and expand fewer nodes. 
+        # (so more agressive, less optimal heuristic that expands fewer nodes)
         all_locations = [target.wizard_loc] + list(target.remaining_crystals) + [target.portal_loc]
         return 1.5 * self.MST_cost(all_locations)
